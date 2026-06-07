@@ -1,1 +1,51 @@
+name: Build CatLedger unsigned IPA
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Build unsigned IPA on macOS
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build iPhone app without signing
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ios/CatLedger/CatLedger.xcodeproj \
+            -scheme CatLedger \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/CatLedger.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Missing app at $APP_PATH"
+            exit 1
+          fi
+          rm -rf build/Payload dist
+          mkdir -p build/Payload dist
+          cp -R "$APP_PATH" build/Payload/
+          (cd build && zip -qry ../dist/CatLedger-unsigned.ipa Payload)
+          unzip -l dist/CatLedger-unsigned.ipa | head -40
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: CatLedger-unsigned-ipa
+          path: dist/CatLedger-unsigned.ipa
+          if-no-files-found: error
